@@ -3,9 +3,8 @@
 
 
 declare -a board=(" " " " " " " " " " " " " " " " " ")  
-
 current_player="X"
-
+save_file=""
 
 
 print_board() {
@@ -93,6 +92,52 @@ switch_player() {
 }
 
 
+save_game(){
+  read -p "enter file name for save: " fname
+  save_file="$fname"
+  {
+    echo "$current_player"
+    printf "%s\n" "${board[@]}"
+  } > "$save_file"
+  echo "Game was saved in '$save_file'."
+}
+
+
+
+load_game(){
+  read -p "enter filename for load: " fname
+    if [[ ! -f $fname ]]; then
+    echo "File '$fname' have not found."
+    return 1
+  fi
+  save_file="$fname"
+  read -r current_player < "$save_file"
+  mapfile -t board < <(tail -n +2 "$save_file")
+  echo "Game was loaded from '$save_file'. Players turn: $current_player."
+  return 0
+}
+
+
+init_board(){
+  board=(" " " " " " " " " " " " " " " " " ")  
+  current_player="X"
+}
+
+main_menu() {
+  echo "=== tic tac toe ==="
+  echo "1) new game"
+  echo "2) load game"
+  echo "3) exit"
+  read -p "choose option [1-3]: " opt
+  case $opt in
+    1) init_board; return 0 ;;
+    2) 
+      if load_game; then return 0; else main_menu; fi
+      ;;
+    3) exit 0 ;;
+    *) echo "Wrong choosen option."; main_menu ;;
+  esac
+}
 
 
 
@@ -108,9 +153,17 @@ game_loop(){
 
     while true; do
 
+
+        clear 
+        print_board
+        echo "(For save enter 'S')"
+
         read -p "Player $current_player, choose field (1-9): " move
 
-    
+        if [[ $move == [Ss] ]]; then
+          save_game
+          continue
+        fi
 
         if ! is_valid_move "$move"; then
 
@@ -155,7 +208,7 @@ done
 }
 
 
-
+main_menu
 game_loop
 
 
