@@ -3,13 +3,13 @@ const SCALE = 2;
 const ZOOM = 1;
 const UNIT = TILE_SIZE * SCALE;
 const MAP = `
-000C0F0000001000000000000000000
+000C0FE000001000000000000000000
 00011111000C10C00C0000000000000
 0000000000111110011000000000000
 0000000000000000000000000000000
-0000000000000000000000C00000000
+000000000000000000000EC00000000
 0000C0000000000C000111110000000
-0000000000000011110000000000000
+0000E00000E00011110000000000000
 1111110011110000000000000000000
 `.trim();
 
@@ -55,6 +55,11 @@ function preload() {
     frameWidth: TILE_SIZE,
     frameHeight: TILE_SIZE, 
     });
+
+    this.load.spritesheet('enemy', 'assets/grotto_escape_pack/graphics/enemies.png', {
+    frameWidth: TILE_SIZE,
+    frameHeight: TILE_SIZE,
+  });
 }
 
 
@@ -65,6 +70,10 @@ let goal
 let crystals
 let score = 0;
 let scoreText;  
+let lives = 3;
+let livesText;
+let invulnerable = false;
+let enemies;
 
 
 function create() {
@@ -77,9 +86,18 @@ function create() {
     });
 
 
+    this.anims.create({
+        key: 'enemy',
+        frames: this.anims.generateFrameNumbers('enemy', {start: 0, end: 2}),
+        frameRate: 10,
+        repeat: -1,
+    });
+
     // --------------- Map---------------- //
     platforms = this.physics.add.staticGroup(); 
     crystals = this.physics.add.group();
+    enemies = this.physics.add.group();
+
 
     const rows = MAP.split('\n');
     const offsetY = config.height - rows.length * UNIT;
@@ -109,6 +127,14 @@ function create() {
                     c.body.setAllowGravity(false);
                     c.play('spin');
                 }
+            else if (tile === 'E') {
+                const enemy = enemies.create(worldX, worldY, 'enemy')
+                    .setScale(SCALE)
+                    .setOrigin(0);
+                enemy.body.setCollideWorldBounds(true);
+                enemy.body.setVelocityX(50);
+                enemy.play('enemy');
+            }
         });
     });
     // --------------- Map ---------------- //
@@ -119,6 +145,11 @@ function create() {
     }).setScrollFactor(0);
 
 
+    livesText = this.add.text(16, 40, 'Lives: ' + lives, {
+        fontSize: '32px',
+        fill: '#fff',
+    }).setScrollFactor(0);
+    
 
     // --------------- Player --------------- //
     const startX = 2 * UNIT;
@@ -130,9 +161,11 @@ function create() {
         .setCollideWorldBounds(true)
 
     this.physics.add.collider(player, platforms);
+    this.physics.add.collider(enemies, platforms);
+    
     this.physics.add.overlap(player, goal, reachGoal, null, this);
     this.physics.add.overlap(player, crystals, collectCrystal, null, this);
-
+    this.physics.add.collider(player, enemies, hitEnemy, null, this);
 
     this.anims.create({
         key: 'walk',
@@ -165,13 +198,12 @@ function create() {
     
 }
 
+
 function handleDeath() {
     score = 0;
-    if (scoreText) {
-        scoreText.setText('Score: ' + score);
-    }
-
-
+    lives = 3;
+    scoreText.setText('Score: ' + score);
+    livesText.setText('Lives: ' + lives);
     this.scene.restart();
 }
 
@@ -180,6 +212,31 @@ function collectCrystal(player, crystal) {
     score += 1;
     scoreText.setText('Score: ' + score);
 }
+
+function hitEnemy(playerObj, enemy) {
+  if (playerObj.body.velocity.y > 0) {
+    enemy.disableBody(true, true);
+    playerObj.setVelocityY(-200);
+  } else if (!invulnerable) {
+    lives -= 1;
+    livesText.setText('Lives: ' + lives);
+    if (lives <= 0) {
+      handleDeath.call(this);
+      return;
+    }
+    invulnerable = true;
+    this.tweens.add({
+      targets: playerObj,
+      alpha: 0,
+      ease: 'Linear',
+      duration: 100,
+      repeat: 10,
+      yoyo: true,
+      onComplete: () => { playerObj.alpha = 1; invulnerable = false; }
+    });
+  }
+}
+
 
 
 function reachGoal(){
@@ -196,6 +253,12 @@ function update(){
     if(player.y > FALL_LIMIT){
         handleDeath.call(this);
     }
+
+
+    enemies.children.iterate(e => {
+      if (e.body.blocked.right) e.setVelocityX(-50);
+      else if (e.body.blocked.left) e.setVelocityX(50);
+    });
 
     if(cursors.left.isDown || cursors.a.isDown) {
         player.setVelocityX(-speed);
