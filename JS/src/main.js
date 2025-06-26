@@ -3,12 +3,12 @@ const SCALE = 2;
 const ZOOM = 1;
 const UNIT = TILE_SIZE * SCALE;
 const MAP = `
-0000F00000010000000000000000000
-0001111000010000000000000000000
-0000000001111100110000000000000
+000C0F0000001000000000000000000
+00011111000C10C00C0000000000000
+0000000000111110011000000000000
 0000000000000000000000000000000
-0000000000000000000000000000000
-0000000000000000000011111000000
+0000000000000000000000C00000000
+0000C0000000000C000111110000000
 0000000000000011110000000000000
 1111110011110000000000000000000
 `.trim();
@@ -50,6 +50,11 @@ function preload() {
     frameWidth: TILE_SIZE,
     frameHeight: TILE_SIZE,
   });
+
+    this.load.spritesheet('crystal', 'assets/grotto_escape_pack/graphics/items.png' , {
+    frameWidth: TILE_SIZE,
+    frameHeight: TILE_SIZE, 
+    });
 }
 
 
@@ -57,14 +62,24 @@ let platforms;
 let player;
 let cursors;
 let goal
+let crystals
+let score = 0;
+let scoreText;  
 
 
 function create() {
 
-    
+    this.anims.create({
+        key: 'spin',
+        frames: this.anims.generateFrameNumbers('crystal', {start: 4, end: 7}),
+        frameRate: 10,
+        repeat: -1,
+    });
+
 
     // --------------- Map---------------- //
     platforms = this.physics.add.staticGroup(); 
+    crystals = this.physics.add.group();
 
     const rows = MAP.split('\n');
     const offsetY = config.height - rows.length * UNIT;
@@ -73,6 +88,8 @@ function create() {
 
     rows.forEach((row, y) => {
         [...row].forEach((tile, x) => {
+            const worldX = x * UNIT;
+            const worldY = offsetY + y * UNIT;
             if (tile === '1') {
                 platforms.create(x * UNIT,offsetY +  y * UNIT, 'tiles', 1)
                     .setOrigin(0)
@@ -85,11 +102,21 @@ function create() {
                     .setOrigin(0)
                     .setScale(SCALE);
                 }
+                else if (tile === 'C'){
+                    const c = crystals.create(x * UNIT, offsetY + y * UNIT, 'crystal')
+                        .setScale(SCALE)
+                        .setOrigin(0.5);
+                    c.body.setAllowGravity(false);
+                    c.play('spin');
+                }
         });
     });
     // --------------- Map ---------------- //
 
-
+    scoreText = this.add.text(16, 16, 'Score: 0', {
+        fontSize: '32px',
+        fill: '#fff',
+    }).setScrollFactor(0);
 
 
 
@@ -104,6 +131,8 @@ function create() {
 
     this.physics.add.collider(player, platforms);
     this.physics.add.overlap(player, goal, reachGoal, null, this);
+    this.physics.add.overlap(player, crystals, collectCrystal, null, this);
+
 
     this.anims.create({
         key: 'walk',
@@ -134,9 +163,24 @@ function create() {
         .startFollow(player, true, 0.1, 0.1);
     // --------------- Player --------------- //
     
-
-
 }
+
+function handleDeath() {
+    score = 0;
+    if (scoreText) {
+        scoreText.setText('Score: ' + score);
+    }
+
+
+    this.scene.restart();
+}
+
+function collectCrystal(player, crystal) {
+    crystal.disableBody(true, true);
+    score += 1;
+    scoreText.setText('Score: ' + score);
+}
+
 
 function reachGoal(){
     this.add.text(player.x - UNIT, player.y - UNIT * 2, 'You reached the goal!', {fontSize: '32px', color: '#fff'});
@@ -150,7 +194,7 @@ function update(){
 
 
     if(player.y > FALL_LIMIT){
-        this.scene.restart();
+        handleDeath.call(this);
     }
 
     if(cursors.left.isDown || cursors.a.isDown) {
